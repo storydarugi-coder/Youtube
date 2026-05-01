@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run typecheck)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(cygpath *)",
+      "Bash(npm ls)",
+      "Bash(npm ls *)",
+      "Bash(npm outdated)",
+      "Bash(npm view *)"
+    ]
+  }
+}
