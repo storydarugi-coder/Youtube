@@ -31,7 +31,7 @@
 
 ## 시작하기
 
-> ⚠️ 진행 중 — M1 단계에서 기본 뼈대 구축 중
+> ⚠️ M2 진행 중 — 레퍼런스 인제스트 구현됨
 
 ```bash
 # 1. 의존성 설치
@@ -41,8 +41,46 @@ npm install
 cp .env.example .env.local
 # .env.local 열어서 API 키 채워넣기
 
-# 3. 개발 서버 시작
+# 3. DB 초기화
+npm run db:generate
+npm run db:migrate
+
+# 4. 개발 서버 시작
 npm run dev
+```
+
+## 외부 도구 (호스트에 설치 필요)
+
+레퍼런스 인제스트 모듈은 호스트의 `yt-dlp`와 `ffmpeg`를 호출합니다. 설치되어 있지 않으면 미리 설치해주세요.
+
+### Windows
+```powershell
+# Chocolatey (권장)
+choco install yt-dlp ffmpeg
+
+# 또는 winget
+winget install yt-dlp.yt-dlp
+winget install Gyan.FFmpeg
+
+# 또는 Scoop
+scoop install yt-dlp ffmpeg
+```
+
+### macOS
+```bash
+brew install yt-dlp ffmpeg
+```
+
+### Linux
+```bash
+sudo apt install yt-dlp ffmpeg          # Debian/Ubuntu
+sudo pacman -S yt-dlp ffmpeg            # Arch
+```
+
+설치 확인:
+```bash
+yt-dlp --version
+ffmpeg -version
 ```
 
 ## API 키 발급
