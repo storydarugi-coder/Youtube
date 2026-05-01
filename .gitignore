@@ -32,6 +32,15 @@ Thumbs.db
 .idea/
 *.swp
 
-# 런타임 산출물
-runs/
-channels/*/output/
+# 런타임 산출물 (root의 runs/만 무시 — app/runs, lib/runs는 코드)
+/runs/
+/channels/*/output/
+
+# SQLite 로컬 DB
+local.db
+local.db-shm
+local.db-wal
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
