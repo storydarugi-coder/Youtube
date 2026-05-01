@@ -8,11 +8,15 @@ node_modules/
 out/
 build/
 dist/
+*.tsbuildinfo
 
 # 환경변수
 .env
 .env.local
 .env.*.local
+
+# Claude Code 로컬 설정 (스킬 정의는 커밋, 개인 설정만 제외)
+.claude/settings.local.json
 
 # 로그
 *.log
