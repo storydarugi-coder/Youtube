@@ -20,6 +20,12 @@ import {
   type Candidates,
   type Selections,
 } from "@/lib/candidates/schema";
+import {
+  FactcheckSchema,
+  ResearchSchema,
+  type Factcheck,
+  type Research,
+} from "@/lib/research/schema";
 import { SelectionForm } from "./_components/selection-form";
 
 type Params = Promise<{ runId: string }>;
@@ -36,8 +42,21 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
   selected: "default",
   selection_timeout: "destructive",
   generate_failed: "destructive",
+  factchecking: "secondary",
+  factchecked: "default",
+  factcheck_failed: "destructive",
+  researching: "secondary",
+  researched: "default",
+  research_failed: "destructive",
   done: "default",
   failed: "destructive",
+};
+
+const VERDICT_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  verified: "default",
+  disputed: "secondary",
+  false: "destructive",
+  unknown: "outline",
 };
 
 const FORMULA_LABEL: Record<string, string> = {
@@ -82,21 +101,31 @@ export default async function RunPage({ params }: { params: Params }) {
     run.status === "pending" ||
     run.status === "ingesting" ||
     run.status === "analyzing" ||
-    run.status === "generating_candidates";
+    run.status === "generating_candidates" ||
+    run.status === "factchecking" ||
+    run.status === "researching";
 
-  const candidates: Candidates | null =
-    run.status === "awaiting_selection" || run.status === "selected"
-      ? await readJsonSafe(run.candidatesPath, (raw) =>
-          CandidatesSchema.parse(raw)
-        )
-      : null;
+  const candidates: Candidates | null = run.candidatesPath
+    ? await readJsonSafe(run.candidatesPath, (raw) =>
+        CandidatesSchema.parse(raw)
+      )
+    : null;
 
-  const selections: Selections | null =
-    run.status === "selected"
-      ? await readJsonSafe(run.selectionsPath, (raw) =>
-          SelectionsSchema.parse(raw)
-        )
-      : null;
+  const selections: Selections | null = run.selectionsPath
+    ? await readJsonSafe(run.selectionsPath, (raw) =>
+        SelectionsSchema.parse(raw)
+      )
+    : null;
+
+  const factcheck: Factcheck | null = run.factcheckPath
+    ? await readJsonSafe(run.factcheckPath, (raw) =>
+        FactcheckSchema.parse(raw)
+      )
+    : null;
+
+  const research: Research | null = run.researchPath
+    ? await readJsonSafe(run.researchPath, (raw) => ResearchSchema.parse(raw))
+    : null;
 
   return (
     <main className="mx-auto max-w-4xl p-8 space-y-6">
@@ -164,6 +193,28 @@ export default async function RunPage({ params }: { params: Params }) {
               </Link>
             </div>
           )}
+          {run.factcheckPath && (
+            <div className="text-neutral-400">
+              팩트체크:{" "}
+              <Link
+                href={`/api/runs/${runId}/factcheck`}
+                className="underline hover:text-emerald-400"
+              >
+                factcheck.json
+              </Link>
+            </div>
+          )}
+          {run.researchPath && (
+            <div className="text-neutral-400">
+              추가 정보:{" "}
+              <Link
+                href={`/api/runs/${runId}/research`}
+                className="underline hover:text-emerald-400"
+              >
+                research.json
+              </Link>
+            </div>
+          )}
           {inProgress && (
             <div className="text-emerald-400">⏳ 진행 중 — 5초마다 자동 새로고침</div>
           )}
@@ -186,7 +237,7 @@ export default async function RunPage({ params }: { params: Params }) {
         </>
       )}
 
-      {run.status === "selected" && candidates && selections && (
+      {selections && candidates && run.status !== "awaiting_selection" && (
         <>
           <Separator />
           <section className="space-y-3">
@@ -244,6 +295,173 @@ export default async function RunPage({ params }: { params: Params }) {
                 <div className="text-xs text-neutral-600 pt-2">
                   제출: {new Date(selections.submittedAt).toLocaleString("ko-KR")}
                 </div>
+              </CardContent>
+            </Card>
+          </section>
+        </>
+      )}
+
+      {factcheck && (
+        <>
+          <Separator />
+          <section className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold">팩트체크</h2>
+              <span className="text-xs text-neutral-500">
+                claims {factcheck.claims.length} · web_search{" "}
+                {factcheck.meta.webSearchCount}회 · {factcheck.meta.model}
+              </span>
+            </div>
+            <Card>
+              <CardContent className="space-y-3 pt-6 text-sm">
+                <div className="text-neutral-300">{factcheck.overallAssessment}</div>
+                <div className="space-y-2">
+                  {factcheck.claims.map((c, i) => (
+                    <div
+                      key={i}
+                      className="border border-neutral-800 rounded p-3 space-y-1"
+                    >
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge
+                          variant={VERDICT_VARIANT[c.verdict] ?? "outline"}
+                        >
+                          {c.verdict}
+                        </Badge>
+                        <Badge variant="outline">{c.confidence}</Badge>
+                        <span className="font-medium">{c.claim}</span>
+                      </div>
+                      <div className="text-xs text-neutral-400">
+                        {c.explanation}
+                      </div>
+                      <div className="text-xs text-neutral-600">
+                        출처 {c.sources.length}개 ·{" "}
+                        {c.sources.slice(0, 2).map((s, k) => (
+                          <a
+                            key={k}
+                            href={s.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="underline hover:text-emerald-400 mr-2"
+                          >
+                            {s.title.slice(0, 40)}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {factcheck.redFlags.length > 0 && (
+                  <div className="border-t border-neutral-800 pt-3">
+                    <div className="text-xs text-red-400 font-medium mb-1">
+                      ⚠ redFlags (다루지 말 것)
+                    </div>
+                    <ul className="text-xs text-red-300 space-y-0.5 list-disc list-inside">
+                      {factcheck.redFlags.map((f, i) => (
+                        <li key={i}>{f}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </section>
+        </>
+      )}
+
+      {research && (
+        <>
+          <Separator />
+          <section className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold">추가 정보</h2>
+              <span className="text-xs text-neutral-500">
+                일화 {research.anecdotes.length} · 인용 {research.quotes.length} ·
+                현대연결 {research.modernConnections.length} · 시각자료{" "}
+                {research.visualAssetIdeas.length} · web_search{" "}
+                {research.meta.webSearchCount}회
+              </span>
+            </div>
+            <Card>
+              <CardContent className="pt-6 text-sm space-y-4">
+                {research.anecdotes.length > 0 && (
+                  <div>
+                    <div className="text-xs text-neutral-500 mb-2">일화</div>
+                    <div className="space-y-2">
+                      {research.anecdotes.map((a, i) => (
+                        <div
+                          key={i}
+                          className="border border-neutral-800 rounded p-3"
+                        >
+                          <div className="font-medium">{a.title}</div>
+                          <div className="text-xs text-neutral-400 mt-1">
+                            {a.summary}
+                          </div>
+                          <div className="text-xs text-neutral-600 mt-1">
+                            왜? — {a.relevance}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {research.quotes.length > 0 && (
+                  <div>
+                    <div className="text-xs text-neutral-500 mb-2">인용</div>
+                    <div className="space-y-2">
+                      {research.quotes.map((q, i) => (
+                        <blockquote
+                          key={i}
+                          className="border-l-2 border-emerald-700 pl-3 text-neutral-300"
+                        >
+                          “{q.text}”
+                          {q.speaker && (
+                            <div className="text-xs text-neutral-500 mt-0.5">
+                              — {q.speaker}
+                            </div>
+                          )}
+                          <div className="text-xs text-neutral-600 mt-0.5">
+                            {q.context}
+                          </div>
+                        </blockquote>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {research.modernConnections.length > 0 && (
+                  <div>
+                    <div className="text-xs text-neutral-500 mb-2">
+                      현대 연결고리
+                    </div>
+                    <ul className="text-sm space-y-1 list-disc list-inside text-neutral-300">
+                      {research.modernConnections.map((m, i) => (
+                        <li key={i}>
+                          <span className="font-medium">{m.point}</span>{" "}
+                          <span className="text-neutral-500">— {m.explanation}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {research.visualAssetIdeas.length > 0 && (
+                  <div>
+                    <div className="text-xs text-neutral-500 mb-2">
+                      시각자료 아이디어
+                    </div>
+                    <ul className="text-xs text-neutral-400 space-y-1 list-disc list-inside">
+                      {research.visualAssetIdeas.map((v, i) => (
+                        <li key={i}>
+                          {v.description}{" "}
+                          <span className="text-neutral-600">({v.purpose})</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {research.additionalNotes && (
+                  <div className="border-t border-neutral-800 pt-3 text-xs text-neutral-400">
+                    {research.additionalNotes}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </section>
