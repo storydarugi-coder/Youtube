@@ -31,6 +31,10 @@ import {
   StoryboardSchema,
   type Storyboard,
 } from "@/lib/storyboard/schema";
+import {
+  UploadMetaSchemaWithThumbnailRefine,
+  type UploadMeta,
+} from "@/lib/upload-meta/schema";
 import { SelectionForm } from "./_components/selection-form";
 
 type Params = Promise<{ runId: string }>;
@@ -59,6 +63,9 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
   storyboarding: "secondary",
   storyboarded: "default",
   storyboard_failed: "destructive",
+  finalizing: "secondary",
+  finalized: "default",
+  finalize_failed: "destructive",
   done: "default",
   failed: "destructive",
 };
@@ -122,7 +129,8 @@ export default async function RunPage({ params }: { params: Params }) {
     run.status === "factchecking" ||
     run.status === "researching" ||
     run.status === "writing" ||
-    run.status === "storyboarding";
+    run.status === "storyboarding" ||
+    run.status === "finalizing";
 
   const candidates: Candidates | null = run.candidatesPath
     ? await readJsonSafe(run.candidatesPath, (raw) =>
@@ -153,6 +161,12 @@ export default async function RunPage({ params }: { params: Params }) {
   const storyboard: Storyboard | null = run.storyboardPath
     ? await readJsonSafe(run.storyboardPath, (raw) =>
         StoryboardSchema.parse(raw)
+      )
+    : null;
+
+  const uploadMeta: UploadMeta | null = run.metaPath
+    ? await readJsonSafe(run.metaPath, (raw) =>
+        UploadMetaSchemaWithThumbnailRefine.parse(raw)
       )
     : null;
 
@@ -277,6 +291,24 @@ export default async function RunPage({ params }: { params: Params }) {
                 className="underline hover:text-emerald-400"
               >
                 storyboard.json
+              </Link>
+            </div>
+          )}
+          {run.metaMdPath && (
+            <div className="text-neutral-400">
+              업로드 메타:{" "}
+              <Link
+                href={`/api/runs/${runId}/meta`}
+                className="underline hover:text-emerald-400"
+              >
+                meta.md
+              </Link>
+              {" · "}
+              <Link
+                href={`/api/runs/${runId}/meta-json`}
+                className="underline hover:text-emerald-400"
+              >
+                meta.json
               </Link>
             </div>
           )}
@@ -693,6 +725,110 @@ export default async function RunPage({ params }: { params: Params }) {
                 </div>
               </CardContent>
             </Card>
+          </section>
+        </>
+      )}
+
+      {uploadMeta && (
+        <>
+          <Separator />
+          <section className="space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h2 className="text-xl font-semibold">업로드 메타</h2>
+              <span className="text-xs text-neutral-500">
+                titleSource: {uploadMeta.meta.titleSource} · 설명{" "}
+                {uploadMeta.meta.descriptionCharCount}자 · 태그{" "}
+                {uploadMeta.tags.length} · retries {uploadMeta.meta.retries}
+              </span>
+            </div>
+            <Card>
+              <CardContent className="pt-6 text-sm space-y-4">
+                <div>
+                  <div className="text-xs text-neutral-500 mb-1">
+                    제목 ({Array.from(uploadMeta.title).length}자)
+                  </div>
+                  <div className="text-lg font-semibold text-neutral-100">
+                    {uploadMeta.title}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-neutral-500 mb-1">
+                    카테고리: <span className="text-neutral-300">{uploadMeta.category}</span>
+                  </div>
+                  <div className="text-xs text-neutral-500 mb-1">태그</div>
+                  <div className="flex flex-wrap gap-1">
+                    {uploadMeta.tags.map((t, i) => (
+                      <span
+                        key={i}
+                        className="text-xs px-2 py-0.5 rounded bg-neutral-800 text-neutral-300"
+                      >
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <details className="border-t border-neutral-800 pt-3">
+                  <summary className="cursor-pointer text-xs text-neutral-400 hover:text-neutral-200">
+                    설명 + 타임스탬프 펼치기 ({uploadMeta.description.timestamps.length}개)
+                  </summary>
+                  <div className="mt-2 space-y-2 text-xs">
+                    <div className="text-neutral-300 whitespace-pre-line">
+                      {uploadMeta.description.intro}
+                    </div>
+                    <div className="border-t border-neutral-800 pt-2">
+                      <div className="text-neutral-500 mb-1">📌 타임스탬프</div>
+                      <ul className="space-y-0.5">
+                        {uploadMeta.description.timestamps.map((ts, i) => (
+                          <li key={i} className="text-neutral-400">
+                            <code className="text-emerald-400">{ts.time}</code>{" "}
+                            {ts.label}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="text-neutral-300 whitespace-pre-line border-t border-neutral-800 pt-2">
+                      {uploadMeta.description.summary}
+                    </div>
+                    <div className="text-neutral-500">
+                      {uploadMeta.description.hashtags.join(" ")}
+                    </div>
+                  </div>
+                </details>
+              </CardContent>
+            </Card>
+
+            <div className="space-y-2">
+              <h3 className="text-base font-semibold">썸네일 프롬프트 3종</h3>
+              {(["emotion", "contrast", "mystery"] as const).map((strategy) => {
+                const t = uploadMeta.thumbnails.find(
+                  (x) => x.strategy === strategy
+                );
+                if (!t) return null;
+                return (
+                  <Card key={strategy}>
+                    <CardContent className="pt-6 text-sm space-y-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="secondary">{t.strategy}</Badge>
+                        <span className="font-medium">
+                          텍스트: 「{t.textOverlay}」
+                        </span>
+                      </div>
+                      <div className="text-xs text-neutral-400">
+                        왜? — {t.rationale}
+                      </div>
+                      <details>
+                        <summary className="cursor-pointer text-xs text-neutral-500 hover:text-neutral-300">
+                          영문 프롬프트 펼치기 ({t.imagePrompt.length}자)
+                        </summary>
+                        <pre className="mt-2 text-xs text-neutral-300 bg-neutral-900 p-3 rounded whitespace-pre-wrap">
+                          {t.imagePrompt}
+                        </pre>
+                      </details>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
           </section>
         </>
       )}

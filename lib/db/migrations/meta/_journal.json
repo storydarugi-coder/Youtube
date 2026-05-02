@@ -43,6 +43,13 @@
       "when": 1777698664994,
       "tag": "0005_thankful_red_skull",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1777699273643,
+      "tag": "0006_easy_prima",
+      "breakpoints": true
     }
   ]
 }
