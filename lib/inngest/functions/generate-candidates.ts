@@ -100,21 +100,24 @@ export const generateCandidatesFunction = inngest.createFunction(
 
     const selections = parsed.data;
 
-    const selectionsPath = await step.run("save-selections", async () => {
+    const selectionsPath = await step.run("write-selections-file", async () => {
       const dir = runDir(runId);
       await ensureDir(dir);
       const out = path.join(dir, "selections.json");
       await fs.writeFile(out, JSON.stringify(selections, null, 2), "utf8");
+      return out;
+    });
+
+    await step.run("update-db-selected", async () => {
       await db
         .update(runs)
         .set({
-          selectionsPath: out,
+          selectionsPath,
           status: "selected",
           errorMessage: null,
           updatedAt: now(),
         })
         .where(eq(runs.id, runId));
-      return out;
     });
 
     await step.sendEvent("selection-completed", {

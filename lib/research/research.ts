@@ -2,13 +2,10 @@ import path from "node:path";
 import fs from "node:fs/promises";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db/client";
-import { runs, channels } from "@/lib/db/schema";
+import { runs } from "@/lib/db/schema";
 import { runDir, ensureDir } from "@/lib/runs/paths";
 import { MODEL_SONNET } from "@/lib/ai/models";
-import {
-  CandidatesSchema,
-  SelectionsSchema,
-} from "@/lib/candidates/schema";
+import { loadSelectedFromRun } from "@/lib/_shared/load-selected";
 import { FactcheckSchema, ResearchSchema, type Research } from "./schema";
 import {
   buildResearchSystemPrompt,
@@ -36,37 +33,17 @@ interface RunContext {
 }
 
 async function loadContext(runId: string): Promise<RunContext> {
+  const { selected, channelConcept } = await loadSelectedFromRun(runId);
+
   const [run] = await db.select().from(runs).where(eq(runs.id, runId));
   if (!run) throw new Error(`run not found: ${runId}`);
-  if (!run.candidatesPath || !run.selectionsPath || !run.factcheckPath) {
-    throw new Error(
-      "candidates/selections/factcheck 경로 중 하나가 비어있습니다."
-    );
+  if (!run.factcheckPath) {
+    throw new Error("factcheck 경로가 비어있습니다. M5(factcheck) 미완료.");
   }
-  const [channel] = await db
-    .select()
-    .from(channels)
-    .where(eq(channels.id, run.channelId));
-  if (!channel) throw new Error(`channel not found: ${run.channelId}`);
 
-  const candidates = CandidatesSchema.parse(
-    JSON.parse(await fs.readFile(run.candidatesPath, "utf8"))
-  );
-  const selections = SelectionsSchema.parse(
-    JSON.parse(await fs.readFile(run.selectionsPath, "utf8"))
-  );
   const factcheck = FactcheckSchema.parse(
     JSON.parse(await fs.readFile(run.factcheckPath, "utf8"))
   );
-
-  const topic = candidates.topics.find((t) => t.index === selections.topicIndex)!;
-  const audience = candidates.audiences.find(
-    (a) => a.index === selections.audienceIndex
-  )!;
-  const title = candidates.titles.find((t) => t.index === selections.titleIndex)!;
-  if (!topic || !audience || !title) {
-    throw new Error("선택된 인덱스의 후보를 candidates에서 찾을 수 없습니다.");
-  }
 
   const factcheckSummary = [
     `overallAssessment: ${factcheck.overallAssessment}`,
@@ -87,27 +64,10 @@ async function loadContext(runId: string): Promise<RunContext> {
     .join("\n");
 
   return {
-    selected: {
-      topic: {
-        title: topic.title,
-        description: topic.description,
-        rationale: topic.rationale,
-      },
-      audience: {
-        label: audience.label,
-        ageRange: audience.ageRange,
-        interests: audience.interests,
-        motivation: audience.motivation,
-      },
-      title: {
-        text: title.text,
-        formula: title.formula,
-        rationale: title.rationale,
-      },
-    },
-    channelConcept: channel.concept,
+    selected,
+    channelConcept,
     factcheckSummary,
-    topicTitle: title.text,
+    topicTitle: selected.title.text,
   };
 }
 

@@ -75,13 +75,13 @@ function extractJson(text: string): string {
   return text.trim();
 }
 
-function isOverloadedError(err: unknown): boolean {
+function isContextLengthError(err: unknown): boolean {
   if (err && typeof err === "object" && "status" in err) {
     const status = (err as { status?: number }).status;
-    return status === 413 || status === 429;
+    if (status === 400 || status === 413) return true;
   }
   const msg = err instanceof Error ? err.message : String(err);
-  return /token|too large|context|overload/i.test(msg);
+  return /context.{0,5}length|prompt is too long|too large|max_tokens/i.test(msg);
 }
 
 async function callClaude(systemPrompt: string, userPrompt: string) {
@@ -147,7 +147,7 @@ export async function analyzeFromInputs(
   try {
     raw = await callClaude(systemPrompt, userPrompt);
   } catch (err) {
-    if (isOverloadedError(err)) {
+    if (isContextLengthError(err)) {
       inputs = inputs.map((i) => ({
         ...i,
         subtitles: i.subtitles.slice(0, SUBTITLE_CHAR_CAP_FALLBACK),
