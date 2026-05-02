@@ -35,6 +35,10 @@ import {
   UploadMetaSchemaWithThumbnailRefine,
   type UploadMeta,
 } from "@/lib/upload-meta/schema";
+import {
+  ImagesJsonSchema,
+  type ImagesJson,
+} from "@/lib/images/schema";
 import { SelectionForm } from "./_components/selection-form";
 
 type Params = Promise<{ runId: string }>;
@@ -66,6 +70,9 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
   finalizing: "secondary",
   finalized: "default",
   finalize_failed: "destructive",
+  generating_images: "secondary",
+  images_generated: "default",
+  images_failed: "destructive",
   done: "default",
   failed: "destructive",
 };
@@ -130,7 +137,8 @@ export default async function RunPage({ params }: { params: Params }) {
     run.status === "researching" ||
     run.status === "writing" ||
     run.status === "storyboarding" ||
-    run.status === "finalizing";
+    run.status === "finalizing" ||
+    run.status === "generating_images";
 
   const candidates: Candidates | null = run.candidatesPath
     ? await readJsonSafe(run.candidatesPath, (raw) =>
@@ -168,6 +176,10 @@ export default async function RunPage({ params }: { params: Params }) {
     ? await readJsonSafe(run.metaPath, (raw) =>
         UploadMetaSchemaWithThumbnailRefine.parse(raw)
       )
+    : null;
+
+  const imagesJson: ImagesJson | null = run.imagesPath
+    ? await readJsonSafe(run.imagesPath, (raw) => ImagesJsonSchema.parse(raw))
     : null;
 
   return (
@@ -310,6 +322,30 @@ export default async function RunPage({ params }: { params: Params }) {
               >
                 meta.json
               </Link>
+            </div>
+          )}
+          {run.imagesMdPath && (
+            <div className="text-neutral-400">
+              이미지:{" "}
+              <Link
+                href={`/api/runs/${runId}/images-md`}
+                className="underline hover:text-emerald-400"
+              >
+                images.md
+              </Link>
+              {" · "}
+              <Link
+                href={`/api/runs/${runId}/images-json`}
+                className="underline hover:text-emerald-400"
+              >
+                images.json
+              </Link>
+              {run.totalImageCostUsd !== null &&
+                run.totalImageCostUsd !== undefined && (
+                  <span className="ml-2 text-emerald-400">
+                    실제 ${run.totalImageCostUsd.toFixed(2)}
+                  </span>
+                )}
             </div>
           )}
           {inProgress && (
@@ -829,6 +865,132 @@ export default async function RunPage({ params }: { params: Params }) {
                 );
               })}
             </div>
+          </section>
+        </>
+      )}
+
+      {imagesJson && (
+        <>
+          <Separator />
+          <section className="space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h2 className="text-xl font-semibold">이미지</h2>
+              <div className="text-right">
+                <div className="text-2xl font-bold text-emerald-400">
+                  ${imagesJson.meta.totalCostUsd.toFixed(2)}
+                </div>
+                <div className="text-xs text-neutral-500">실제 비용</div>
+              </div>
+            </div>
+            <Card>
+              <CardContent className="pt-6 text-sm space-y-4">
+                <div className="text-xs text-neutral-500">
+                  씬 {imagesJson.meta.succeeded -
+                    imagesJson.thumbnails.filter((t) => t.status === "done")
+                      .length}
+                  /{imagesJson.meta.totalScenes} 성공 · 썸네일{" "}
+                  {imagesJson.thumbnails.filter((t) => t.status === "done").length}/3
+                  {imagesJson.meta.skippedExisting > 0 && (
+                    <span> · 재개 스킵 {imagesJson.meta.skippedExisting}</span>
+                  )}
+                  {imagesJson.meta.failed > 0 && (
+                    <span className="text-red-400">
+                      {" "}
+                      · 실패 {imagesJson.meta.failed}
+                    </span>
+                  )}{" "}
+                  · {imagesJson.meta.model}
+                </div>
+
+                <div>
+                  <div className="text-xs text-neutral-500 mb-2">썸네일 3종</div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {imagesJson.thumbnails.map((t) => (
+                      <div
+                        key={t.thumbnailStrategy ?? "?"}
+                        className="space-y-1"
+                      >
+                        {t.status === "done" && t.thumbnailStrategy ? (
+                          <img
+                            src={`/api/runs/${runId}/image/thumbnail/${t.thumbnailStrategy}`}
+                            alt={t.thumbnailStrategy}
+                            className="w-full aspect-video object-cover rounded border border-neutral-800"
+                          />
+                        ) : (
+                          <div className="w-full aspect-video flex items-center justify-center bg-neutral-900 rounded border border-neutral-800 text-xs text-neutral-500">
+                            {t.status === "failed" ? "❌ 실패" : "—"}
+                          </div>
+                        )}
+                        <div className="text-xs text-center text-neutral-400">
+                          {t.thumbnailStrategy}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {imagesJson.scenes.length > 0 && (
+                  <div>
+                    <div className="text-xs text-neutral-500 mb-2">
+                      씬 갤러리 (상위 12장)
+                    </div>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                      {imagesJson.scenes
+                        .filter((s) => s.status === "done")
+                        .slice(0, 12)
+                        .map((s) => (
+                          <div key={s.sceneIndex ?? "?"} className="space-y-1">
+                            <img
+                              src={`/api/runs/${runId}/image/scene/${s.sceneIndex}`}
+                              alt={`scene ${s.sceneIndex}`}
+                              loading="lazy"
+                              className="w-full aspect-video object-cover rounded border border-neutral-800"
+                            />
+                            <div className="text-xs text-neutral-500">
+                              #{s.sceneIndex}
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                    {imagesJson.scenes.filter((s) => s.status === "done").length >
+                      12 && (
+                      <div className="text-xs text-neutral-500 text-center mt-2">
+                        … 전체는{" "}
+                        <Link
+                          href={`/api/runs/${runId}/images-md`}
+                          className="underline hover:text-emerald-400"
+                        >
+                          images.md
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {imagesJson.meta.failed > 0 && (
+                  <details>
+                    <summary className="cursor-pointer text-xs text-red-400 hover:text-red-300">
+                      실패 {imagesJson.meta.failed}개 펼치기
+                    </summary>
+                    <ul className="mt-2 space-y-1 text-xs">
+                      {[
+                        ...imagesJson.scenes,
+                        ...imagesJson.thumbnails,
+                      ]
+                        .filter((r) => r.status === "failed")
+                        .map((r, i) => (
+                          <li key={i} className="text-red-300">
+                            {r.type === "scene"
+                              ? `씬 ${r.sceneIndex}`
+                              : `썸네일 ${r.thumbnailStrategy}`}
+                            : {r.errorMessage}
+                          </li>
+                        ))}
+                    </ul>
+                  </details>
+                )}
+              </CardContent>
+            </Card>
           </section>
         </>
       )}

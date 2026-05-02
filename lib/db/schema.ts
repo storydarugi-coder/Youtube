@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
 
 export const channels = sqliteTable("channels", {
   id: text("id").primaryKey(),
@@ -29,6 +29,9 @@ export const runs = sqliteTable("runs", {
   storyboardMdPath: text("storyboard_md_path"),
   metaPath: text("meta_path"),
   metaMdPath: text("meta_md_path"),
+  imagesPath: text("images_path"),
+  imagesMdPath: text("images_md_path"),
+  totalImageCostUsd: real("total_image_cost_usd"),
   errorMessage: text("error_message"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
@@ -61,6 +64,9 @@ export const RUN_STATUS = {
   finalizing: "finalizing",
   finalized: "finalized",
   finalize_failed: "finalize_failed",
+  generating_images: "generating_images",
+  images_generated: "images_generated",
+  images_failed: "images_failed",
   failed: "failed",
   done: "done",
 } as const;
