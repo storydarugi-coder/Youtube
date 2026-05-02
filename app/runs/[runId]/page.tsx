@@ -2,6 +2,7 @@ import { unstable_noStore as noStore } from "next/cache";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
+import fs from "node:fs/promises";
 import { db } from "@/lib/db/client";
 import { runs, refsTable, channels } from "@/lib/db/schema";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +14,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import {
+  CandidatesSchema,
+  SelectionsSchema,
+  type Candidates,
+  type Selections,
+} from "@/lib/candidates/schema";
+import { SelectionForm } from "./_components/selection-form";
 
 type Params = Promise<{ runId: string }>;
 
@@ -23,9 +31,35 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
   analyzing: "secondary",
   analyzed: "default",
   analyze_failed: "destructive",
+  generating_candidates: "secondary",
+  awaiting_selection: "secondary",
+  selected: "default",
+  selection_timeout: "destructive",
+  generate_failed: "destructive",
   done: "default",
   failed: "destructive",
 };
+
+const FORMULA_LABEL: Record<string, string> = {
+  shock: "충격·반전",
+  question: "의문·미스터리",
+  contrast: "대비·비교",
+  list: "숫자 나열",
+  storytelling: "서사·감정",
+};
+
+async function readJsonSafe<T>(
+  path: string | null,
+  parse: (raw: unknown) => T
+): Promise<T | null> {
+  if (!path) return null;
+  try {
+    const raw = await fs.readFile(path, "utf8");
+    return parse(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
 
 export default async function RunPage({ params }: { params: Params }) {
   noStore();
@@ -47,13 +81,26 @@ export default async function RunPage({ params }: { params: Params }) {
   const inProgress =
     run.status === "pending" ||
     run.status === "ingesting" ||
-    run.status === "analyzing";
+    run.status === "analyzing" ||
+    run.status === "generating_candidates";
+
+  const candidates: Candidates | null =
+    run.status === "awaiting_selection" || run.status === "selected"
+      ? await readJsonSafe(run.candidatesPath, (raw) =>
+          CandidatesSchema.parse(raw)
+        )
+      : null;
+
+  const selections: Selections | null =
+    run.status === "selected"
+      ? await readJsonSafe(run.selectionsPath, (raw) =>
+          SelectionsSchema.parse(raw)
+        )
+      : null;
 
   return (
     <main className="mx-auto max-w-4xl p-8 space-y-6">
-      {inProgress && (
-        <meta httpEquiv="refresh" content="5" />
-      )}
+      {inProgress && <meta httpEquiv="refresh" content="5" />}
 
       <div className="flex items-center justify-between">
         <div>
@@ -91,9 +138,30 @@ export default async function RunPage({ params }: { params: Params }) {
                 href={`/api/runs/${runId}/style-guide`}
                 className="underline hover:text-emerald-400"
               >
-                style_guide.json 다운로드
+                style_guide.json
               </Link>
-              <div className="text-neutral-600 break-all">{run.styleGuidePath}</div>
+            </div>
+          )}
+          {run.candidatesPath && (
+            <div className="text-neutral-400">
+              후보:{" "}
+              <Link
+                href={`/api/runs/${runId}/candidates`}
+                className="underline hover:text-emerald-400"
+              >
+                candidates.json
+              </Link>
+            </div>
+          )}
+          {run.selectionsPath && (
+            <div className="text-neutral-400">
+              선택:{" "}
+              <Link
+                href={`/api/runs/${runId}/selections`}
+                className="underline hover:text-emerald-400"
+              >
+                selections.json
+              </Link>
             </div>
           )}
           {inProgress && (
@@ -101,6 +169,86 @@ export default async function RunPage({ params }: { params: Params }) {
           )}
         </CardContent>
       </Card>
+
+      {run.status === "awaiting_selection" && candidates && (
+        <>
+          <Separator />
+          <section className="space-y-4">
+            <div>
+              <h2 className="text-2xl font-semibold">1.5단계 — 선택해주세요</h2>
+              <p className="text-sm text-neutral-400 mt-1">
+                Claude Sonnet 4.6이 채널·스타일 가이드 기반으로 주제·타겟·제목 후보를 각 3개씩 제안했습니다.
+                각 카테고리에서 1개씩 골라야 다음 단계(팩트체크)로 넘어갑니다.
+              </p>
+            </div>
+            <SelectionForm runId={runId} candidates={candidates} />
+          </section>
+        </>
+      )}
+
+      {run.status === "selected" && candidates && selections && (
+        <>
+          <Separator />
+          <section className="space-y-3">
+            <h2 className="text-xl font-semibold">선택 결과</h2>
+            <Card>
+              <CardContent className="space-y-3 pt-6 text-sm">
+                {(() => {
+                  const t = candidates.topics.find(
+                    (x) => x.index === selections.topicIndex
+                  );
+                  return t ? (
+                    <div>
+                      <div className="text-xs text-neutral-500">주제 #{t.index}</div>
+                      <div className="font-medium">{t.title}</div>
+                      <div className="text-neutral-400 text-xs mt-1">{t.description}</div>
+                    </div>
+                  ) : null;
+                })()}
+                {(() => {
+                  const a = candidates.audiences.find(
+                    (x) => x.index === selections.audienceIndex
+                  );
+                  return a ? (
+                    <div>
+                      <div className="text-xs text-neutral-500">타겟 #{a.index}</div>
+                      <div className="font-medium">
+                        {a.label} <span className="text-neutral-500">· {a.ageRange}</span>
+                      </div>
+                      <div className="text-neutral-400 text-xs mt-1">{a.motivation}</div>
+                    </div>
+                  ) : null;
+                })()}
+                {(() => {
+                  const t = candidates.titles.find(
+                    (x) => x.index === selections.titleIndex
+                  );
+                  return t ? (
+                    <div>
+                      <div className="text-xs text-neutral-500">
+                        제목 #{t.index} ·{" "}
+                        <Badge variant="secondary" className="ml-1">
+                          {FORMULA_LABEL[t.formula] ?? t.formula}
+                        </Badge>
+                      </div>
+                      <div className="font-medium text-base">{t.text}</div>
+                    </div>
+                  ) : null;
+                })()}
+                {selections.customNote && (
+                  <div className="border-t border-neutral-800 pt-3">
+                    <div className="text-xs text-neutral-500">메모</div>
+                    <div className="text-neutral-300">{selections.customNote}</div>
+                  </div>
+                )}
+                <div className="text-xs text-neutral-600 pt-2">
+                  제출: {new Date(selections.submittedAt).toLocaleString("ko-KR")}
+                </div>
+              </CardContent>
+            </Card>
+          </section>
+        </>
+      )}
 
       <Separator />
 

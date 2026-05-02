@@ -15,6 +15,13 @@
       "when": 1777693995535,
       "tag": "0001_friendly_gambit",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1777695861743,
+      "tag": "0002_hard_lady_vermin",
+      "breakpoints": true
     }
   ]
 }
