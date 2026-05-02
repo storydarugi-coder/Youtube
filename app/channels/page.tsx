@@ -95,6 +95,17 @@ export default async function ChannelsPage() {
                 placeholder="예: 차분하지만 호기심을 자극, 성우 같은 어조"
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="ttsVoiceId">
+                ElevenLabs Voice ID{" "}
+                <span className="text-xs text-neutral-500">(선택)</span>
+              </Label>
+              <Input
+                id="ttsVoiceId"
+                name="ttsVoiceId"
+                placeholder="비우면 ELEVENLABS_DEFAULT_VOICE_ID 사용"
+              />
+            </div>
             <Button type="submit">채널 만들기</Button>
           </form>
         </CardContent>
@@ -122,6 +133,9 @@ export default async function ChannelsPage() {
                 <CardContent className="text-xs text-neutral-500 space-y-1">
                   <div><span className="text-neutral-400">스타일:</span> {c.visualStyle}</div>
                   <div><span className="text-neutral-400">톤:</span> {c.voiceTone}</div>
+                  {c.ttsVoiceId && (
+                    <div><span className="text-neutral-400">Voice ID:</span> <code>{c.ttsVoiceId}</code></div>
+                  )}
                   <div><span className="text-neutral-400">생성:</span> {new Date(c.createdAt * 1000).toLocaleString("ko-KR")}</div>
                 </CardContent>
               </Card>

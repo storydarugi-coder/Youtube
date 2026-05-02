@@ -39,6 +39,7 @@ import {
   ImagesJsonSchema,
   type ImagesJson,
 } from "@/lib/images/schema";
+import { AudioJsonSchema, type AudioJson } from "@/lib/audio/schema";
 import { SelectionForm } from "./_components/selection-form";
 
 type Params = Promise<{ runId: string }>;
@@ -73,6 +74,9 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
   generating_images: "secondary",
   images_generated: "default",
   images_failed: "destructive",
+  tts_generating: "secondary",
+  audio_generated: "default",
+  audio_failed: "destructive",
   done: "default",
   failed: "destructive",
 };
@@ -138,7 +142,8 @@ export default async function RunPage({ params }: { params: Params }) {
     run.status === "writing" ||
     run.status === "storyboarding" ||
     run.status === "finalizing" ||
-    run.status === "generating_images";
+    run.status === "generating_images" ||
+    run.status === "tts_generating";
 
   const candidates: Candidates | null = run.candidatesPath
     ? await readJsonSafe(run.candidatesPath, (raw) =>
@@ -180,6 +185,10 @@ export default async function RunPage({ params }: { params: Params }) {
 
   const imagesJson: ImagesJson | null = run.imagesPath
     ? await readJsonSafe(run.imagesPath, (raw) => ImagesJsonSchema.parse(raw))
+    : null;
+
+  const audioJson: AudioJson | null = run.audioPath
+    ? await readJsonSafe(run.audioPath, (raw) => AudioJsonSchema.parse(raw))
     : null;
 
   return (
@@ -344,6 +353,30 @@ export default async function RunPage({ params }: { params: Params }) {
                 run.totalImageCostUsd !== undefined && (
                   <span className="ml-2 text-emerald-400">
                     실제 ${run.totalImageCostUsd.toFixed(2)}
+                  </span>
+                )}
+            </div>
+          )}
+          {run.audioMdPath && (
+            <div className="text-neutral-400">
+              음성:{" "}
+              <Link
+                href={`/api/runs/${runId}/audio-md`}
+                className="underline hover:text-emerald-400"
+              >
+                audio.md
+              </Link>
+              {" · "}
+              <Link
+                href={`/api/runs/${runId}/audio-json`}
+                className="underline hover:text-emerald-400"
+              >
+                audio.json
+              </Link>
+              {run.totalAudioCostUsd !== null &&
+                run.totalAudioCostUsd !== undefined && (
+                  <span className="ml-2 text-emerald-400">
+                    실제 ${run.totalAudioCostUsd.toFixed(2)}
                   </span>
                 )}
             </div>
@@ -984,6 +1017,103 @@ export default async function RunPage({ params }: { params: Params }) {
                               ? `씬 ${r.sceneIndex}`
                               : `썸네일 ${r.thumbnailStrategy}`}
                             : {r.errorMessage}
+                          </li>
+                        ))}
+                    </ul>
+                  </details>
+                )}
+              </CardContent>
+            </Card>
+          </section>
+        </>
+      )}
+
+      {audioJson && (
+        <>
+          <Separator />
+          <section className="space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h2 className="text-xl font-semibold">음성</h2>
+              <div className="text-right">
+                <div className="text-2xl font-bold text-emerald-400">
+                  ${audioJson.meta.totalCostUsd.toFixed(2)}
+                </div>
+                <div className="text-xs text-neutral-500">
+                  총 길이{" "}
+                  {Math.floor(audioJson.meta.totalDurationMs / 60000)}:
+                  {String(
+                    Math.round(
+                      (audioJson.meta.totalDurationMs % 60000) / 1000
+                    )
+                  ).padStart(2, "0")}
+                </div>
+              </div>
+            </div>
+            <Card>
+              <CardContent className="pt-6 text-sm space-y-3">
+                <div className="text-xs text-neutral-500">
+                  씬 {audioJson.meta.succeeded}/{audioJson.meta.totalScenes}{" "}
+                  성공
+                  {audioJson.meta.skippedExisting > 0 && (
+                    <span> · 재개 스킵 {audioJson.meta.skippedExisting}</span>
+                  )}
+                  {audioJson.meta.failed > 0 && (
+                    <span className="text-red-400">
+                      {" "}
+                      · 실패 {audioJson.meta.failed}
+                    </span>
+                  )}
+                  {" "}· {audioJson.meta.totalCharCount}자 ·{" "}
+                  <code>{audioJson.meta.voiceId}</code>
+                </div>
+
+                <div>
+                  <div className="text-xs text-neutral-500 mb-2">
+                    미리듣기 (첫 3개 씬)
+                  </div>
+                  <div className="space-y-2">
+                    {audioJson.scenes
+                      .filter((s) => s.status === "done")
+                      .slice(0, 3)
+                      .map((s) => (
+                        <div
+                          key={s.sceneIndex}
+                          className="flex items-center gap-3 border border-neutral-800 rounded p-2"
+                        >
+                          <Badge variant="outline">#{s.sceneIndex}</Badge>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs text-neutral-300 truncate">
+                              {s.text}
+                            </div>
+                            <div className="text-xs text-neutral-500">
+                              {s.durationMs !== null
+                                ? `${(s.durationMs / 1000).toFixed(1)}s`
+                                : "—"}{" "}
+                              · {s.charCount}자
+                            </div>
+                          </div>
+                          <audio
+                            controls
+                            preload="none"
+                            src={`/api/runs/${runId}/audio/${s.sceneIndex}`}
+                            className="h-8 max-w-[200px]"
+                          />
+                        </div>
+                      ))}
+                  </div>
+                </div>
+
+                {audioJson.meta.failed > 0 && (
+                  <details>
+                    <summary className="cursor-pointer text-xs text-red-400 hover:text-red-300">
+                      실패 {audioJson.meta.failed}개 펼치기
+                    </summary>
+                    <ul className="mt-2 space-y-1 text-xs">
+                      {audioJson.scenes
+                        .filter((s) => s.status === "failed")
+                        .map((s) => (
+                          <li key={s.sceneIndex} className="text-red-300">
+                            씬 {s.sceneIndex}: {s.errorMessage}
                           </li>
                         ))}
                     </ul>

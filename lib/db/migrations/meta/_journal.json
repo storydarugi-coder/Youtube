@@ -57,6 +57,13 @@
       "when": 1777701254933,
       "tag": "0007_material_human_robot",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1777702298981,
+      "tag": "0008_parched_nomad",
+      "breakpoints": true
     }
   ]
 }

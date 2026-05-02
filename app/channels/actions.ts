@@ -10,6 +10,8 @@ export async function createChannel(formData: FormData) {
   const concept = String(formData.get("concept") ?? "").trim();
   const visualStyle = String(formData.get("visualStyle") ?? "").trim();
   const voiceTone = String(formData.get("voiceTone") ?? "").trim();
+  const ttsVoiceIdRaw = String(formData.get("ttsVoiceId") ?? "").trim();
+  const ttsVoiceId = ttsVoiceIdRaw.length > 0 ? ttsVoiceIdRaw : null;
   const defaultDurationMinRaw = String(
     formData.get("defaultDurationMin") ?? "13"
   );
@@ -25,6 +27,7 @@ export async function createChannel(formData: FormData) {
     concept,
     visualStyle,
     voiceTone,
+    ttsVoiceId,
     defaultDurationMin,
     createdAt: Math.floor(Date.now() / 1000),
   });
