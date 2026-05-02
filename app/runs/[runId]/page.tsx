@@ -26,6 +26,7 @@ import {
   type Factcheck,
   type Research,
 } from "@/lib/research/schema";
+import { ScriptOutputSchema, type ScriptOutput } from "@/lib/script/schema";
 import { SelectionForm } from "./_components/selection-form";
 
 type Params = Promise<{ runId: string }>;
@@ -48,8 +49,17 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
   researching: "secondary",
   researched: "default",
   research_failed: "destructive",
+  writing: "secondary",
+  scripted: "default",
+  write_failed: "destructive",
   done: "default",
   failed: "destructive",
+};
+
+const CONFIDENCE_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  high: "default",
+  medium: "secondary",
+  low: "outline",
 };
 
 const VERDICT_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -103,7 +113,8 @@ export default async function RunPage({ params }: { params: Params }) {
     run.status === "analyzing" ||
     run.status === "generating_candidates" ||
     run.status === "factchecking" ||
-    run.status === "researching";
+    run.status === "researching" ||
+    run.status === "writing";
 
   const candidates: Candidates | null = run.candidatesPath
     ? await readJsonSafe(run.candidatesPath, (raw) =>
@@ -125,6 +136,10 @@ export default async function RunPage({ params }: { params: Params }) {
 
   const research: Research | null = run.researchPath
     ? await readJsonSafe(run.researchPath, (raw) => ResearchSchema.parse(raw))
+    : null;
+
+  const script: ScriptOutput | null = run.scriptPath
+    ? await readJsonSafe(run.scriptPath, (raw) => ScriptOutputSchema.parse(raw))
     : null;
 
   return (
@@ -212,6 +227,24 @@ export default async function RunPage({ params }: { params: Params }) {
                 className="underline hover:text-emerald-400"
               >
                 research.json
+              </Link>
+            </div>
+          )}
+          {run.scriptMdPath && (
+            <div className="text-neutral-400">
+              대본:{" "}
+              <Link
+                href={`/api/runs/${runId}/script`}
+                className="underline hover:text-emerald-400"
+              >
+                script.md
+              </Link>
+              {" · "}
+              <Link
+                href={`/api/runs/${runId}/script-json`}
+                className="underline hover:text-emerald-400"
+              >
+                script.json
               </Link>
             </div>
           )}
@@ -462,6 +495,111 @@ export default async function RunPage({ params }: { params: Params }) {
                     {research.additionalNotes}
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </section>
+        </>
+      )}
+
+      {script && (
+        <>
+          <Separator />
+          <section className="space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h2 className="text-xl font-semibold">대본</h2>
+              <div className="flex items-center gap-2 text-xs text-neutral-500">
+                <Badge
+                  variant={
+                    CONFIDENCE_VARIANT[script.selfReview.confidenceLevel] ?? "outline"
+                  }
+                >
+                  confidence: {script.selfReview.confidenceLevel}
+                </Badge>
+                <span>
+                  {script.meta.actualCharCount}/{script.meta.targetCharCount}자
+                  ({script.meta.sectionCount}개 섹션, retries{" "}
+                  {script.meta.retries})
+                </span>
+              </div>
+            </div>
+            <Card>
+              <CardContent className="pt-6 text-sm space-y-3">
+                <div className="space-y-2">
+                  {script.sections.map((s, i) => (
+                    <div
+                      key={i}
+                      className="border border-neutral-800 rounded p-3"
+                    >
+                      <div className="flex items-center gap-2 flex-wrap mb-2">
+                        <Badge variant="outline">{i + 1}</Badge>
+                        <Badge variant="secondary">{s.role}</Badge>
+                        <span className="font-medium">{s.title}</span>
+                        <span className="text-xs text-neutral-500">
+                          ~{s.estimatedSeconds}s · {s.text.length}자
+                        </span>
+                      </div>
+                      <div className="text-neutral-300 whitespace-pre-line text-xs">
+                        {s.text}
+                      </div>
+                      {s.transitionToNext && (
+                        <div className="text-xs text-emerald-500 mt-2">
+                          → {s.transitionToNext}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <details className="border-t border-neutral-800 pt-3">
+                  <summary className="cursor-pointer text-xs text-neutral-400 hover:text-neutral-200">
+                    자체 검토 노트 펼치기
+                  </summary>
+                  <div className="mt-2 space-y-3 text-xs">
+                    {script.selfReview.issuesFound.length > 0 && (
+                      <div>
+                        <div className="text-neutral-500 mb-1">발견한 문제</div>
+                        <ul className="list-disc list-inside text-neutral-400 space-y-0.5">
+                          {script.selfReview.issuesFound.map((x, i) => (
+                            <li key={i}>{x}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {script.selfReview.revisionsApplied.length > 0 && (
+                      <div>
+                        <div className="text-neutral-500 mb-1">적용한 수정</div>
+                        <ul className="list-disc list-inside text-neutral-400 space-y-0.5">
+                          {script.selfReview.revisionsApplied.map((x, i) => (
+                            <li key={i}>{x}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {script.selfReview.factualClaimsUsed.length > 0 && (
+                      <div>
+                        <div className="text-neutral-500 mb-1">
+                          사용한 verified 클레임
+                        </div>
+                        <ul className="list-disc list-inside text-neutral-400 space-y-0.5">
+                          {script.selfReview.factualClaimsUsed.map((x, i) => (
+                            <li key={i}>{x}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {script.selfReview.redFlagsAvoided.length > 0 && (
+                      <div>
+                        <div className="text-neutral-500 mb-1">
+                          회피한 redFlags
+                        </div>
+                        <ul className="list-disc list-inside text-neutral-400 space-y-0.5">
+                          {script.selfReview.redFlagsAvoided.map((x, i) => (
+                            <li key={i}>{x}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </details>
               </CardContent>
             </Card>
           </section>
