@@ -25,6 +25,8 @@ export const runs = sqliteTable("runs", {
   researchPath: text("research_path"),
   scriptPath: text("script_path"),
   scriptMdPath: text("script_md_path"),
+  storyboardPath: text("storyboard_path"),
+  storyboardMdPath: text("storyboard_md_path"),
   errorMessage: text("error_message"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
@@ -51,6 +53,9 @@ export const RUN_STATUS = {
   writing: "writing",
   scripted: "scripted",
   write_failed: "write_failed",
+  storyboarding: "storyboarding",
+  storyboarded: "storyboarded",
+  storyboard_failed: "storyboard_failed",
   failed: "failed",
   done: "done",
 } as const;

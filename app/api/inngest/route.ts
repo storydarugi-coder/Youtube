@@ -6,6 +6,7 @@ import { generateCandidatesFunction } from "@/lib/inngest/functions/generate-can
 import { factcheckTopicFunction } from "@/lib/inngest/functions/factcheck-topic";
 import { researchTopicFunction } from "@/lib/inngest/functions/research-topic";
 import { writeScriptFunction } from "@/lib/inngest/functions/write-script";
+import { storyboardScriptFunction } from "@/lib/inngest/functions/storyboard-script";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -16,5 +17,6 @@ export const { GET, POST, PUT } = serve({
     factcheckTopicFunction,
     researchTopicFunction,
     writeScriptFunction,
+    storyboardScriptFunction,
   ],
 });

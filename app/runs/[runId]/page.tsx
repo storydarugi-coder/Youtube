@@ -27,6 +27,10 @@ import {
   type Research,
 } from "@/lib/research/schema";
 import { ScriptOutputSchema, type ScriptOutput } from "@/lib/script/schema";
+import {
+  StoryboardSchema,
+  type Storyboard,
+} from "@/lib/storyboard/schema";
 import { SelectionForm } from "./_components/selection-form";
 
 type Params = Promise<{ runId: string }>;
@@ -52,6 +56,9 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
   writing: "secondary",
   scripted: "default",
   write_failed: "destructive",
+  storyboarding: "secondary",
+  storyboarded: "default",
+  storyboard_failed: "destructive",
   done: "default",
   failed: "destructive",
 };
@@ -114,7 +121,8 @@ export default async function RunPage({ params }: { params: Params }) {
     run.status === "generating_candidates" ||
     run.status === "factchecking" ||
     run.status === "researching" ||
-    run.status === "writing";
+    run.status === "writing" ||
+    run.status === "storyboarding";
 
   const candidates: Candidates | null = run.candidatesPath
     ? await readJsonSafe(run.candidatesPath, (raw) =>
@@ -140,6 +148,12 @@ export default async function RunPage({ params }: { params: Params }) {
 
   const script: ScriptOutput | null = run.scriptPath
     ? await readJsonSafe(run.scriptPath, (raw) => ScriptOutputSchema.parse(raw))
+    : null;
+
+  const storyboard: Storyboard | null = run.storyboardPath
+    ? await readJsonSafe(run.storyboardPath, (raw) =>
+        StoryboardSchema.parse(raw)
+      )
     : null;
 
   return (
@@ -245,6 +259,24 @@ export default async function RunPage({ params }: { params: Params }) {
                 className="underline hover:text-emerald-400"
               >
                 script.json
+              </Link>
+            </div>
+          )}
+          {run.storyboardMdPath && (
+            <div className="text-neutral-400">
+              스토리보드:{" "}
+              <Link
+                href={`/api/runs/${runId}/storyboard`}
+                className="underline hover:text-emerald-400"
+              >
+                storyboard.md
+              </Link>
+              {" · "}
+              <Link
+                href={`/api/runs/${runId}/storyboard-json`}
+                className="underline hover:text-emerald-400"
+              >
+                storyboard.json
               </Link>
             </div>
           )}
@@ -600,6 +632,65 @@ export default async function RunPage({ params }: { params: Params }) {
                     )}
                   </div>
                 </details>
+              </CardContent>
+            </Card>
+          </section>
+        </>
+      )}
+
+      {storyboard && (
+        <>
+          <Separator />
+          <section className="space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h2 className="text-xl font-semibold">스토리보드</h2>
+              <span className="text-xs text-neutral-500">
+                씬 {storyboard.meta.sceneCount}개 ·{" "}
+                {storyboard.totalDurationSec}/{storyboard.meta.targetTotalSec}초 ·
+                평균 {storyboard.meta.avgSceneSec.toFixed(1)}초/씬 · retries{" "}
+                {storyboard.meta.retries}
+              </span>
+            </div>
+            <Card>
+              <CardContent className="pt-6 text-sm space-y-3">
+                <div className="text-xs text-neutral-500">
+                  Visual Style Prefix:{" "}
+                  <code className="text-neutral-300 bg-neutral-900 px-1 rounded">
+                    {storyboard.visualStylePrefix}
+                  </code>
+                </div>
+                <div className="space-y-2">
+                  {storyboard.scenes.slice(0, 5).map((s) => (
+                    <div
+                      key={s.index}
+                      className="border border-neutral-800 rounded p-3"
+                    >
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <Badge variant="outline">#{s.index}</Badge>
+                        <Badge variant="secondary">{s.sectionRole}</Badge>
+                        <span className="text-xs text-neutral-500">
+                          §{s.sectionIndex} · {s.durationSec}s
+                        </span>
+                      </div>
+                      <div className="text-neutral-300 text-xs">{s.caption}</div>
+                      <div className="text-xs text-neutral-500 mt-1 line-clamp-2">
+                        {s.imagePrompt}
+                      </div>
+                    </div>
+                  ))}
+                  {storyboard.scenes.length > 5 && (
+                    <div className="text-xs text-neutral-500 text-center py-2">
+                      … {storyboard.scenes.length - 5}개 더 — 전체는{" "}
+                      <Link
+                        href={`/api/runs/${runId}/storyboard`}
+                        className="underline hover:text-emerald-400"
+                      >
+                        storyboard.md
+                      </Link>{" "}
+                      참고
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </section>
