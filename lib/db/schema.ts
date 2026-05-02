@@ -18,10 +18,23 @@ export const runs = sqliteTable("runs", {
     .references(() => channels.id),
   status: text("status").notNull(),
   durationMin: integer("duration_min").notNull(),
+  styleGuidePath: text("style_guide_path"),
   errorMessage: text("error_message"),
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });
+
+export const RUN_STATUS = {
+  pending: "pending",
+  ingesting: "ingesting",
+  ingested: "ingested",
+  analyzing: "analyzing",
+  analyzed: "analyzed",
+  analyze_failed: "analyze_failed",
+  failed: "failed",
+  done: "done",
+} as const;
+export type RunStatus = (typeof RUN_STATUS)[keyof typeof RUN_STATUS];
 
 export const refsTable = sqliteTable("references", {
   id: text("id").primaryKey(),

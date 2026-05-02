@@ -20,6 +20,9 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
   pending: "outline",
   ingesting: "secondary",
   ingested: "default",
+  analyzing: "secondary",
+  analyzed: "default",
+  analyze_failed: "destructive",
   done: "default",
   failed: "destructive",
 };
@@ -41,7 +44,10 @@ export default async function RunPage({ params }: { params: Params }) {
     .from(refsTable)
     .where(eq(refsTable.runId, runId));
 
-  const inProgress = run.status === "pending" || run.status === "ingesting";
+  const inProgress =
+    run.status === "pending" ||
+    run.status === "ingesting" ||
+    run.status === "analyzing";
 
   return (
     <main className="mx-auto max-w-4xl p-8 space-y-6">
@@ -78,6 +84,18 @@ export default async function RunPage({ params }: { params: Params }) {
         <CardContent className="text-xs text-neutral-500 space-y-1">
           <div>생성: {new Date(run.createdAt * 1000).toLocaleString("ko-KR")}</div>
           <div>업데이트: {new Date(run.updatedAt * 1000).toLocaleString("ko-KR")}</div>
+          {run.styleGuidePath && (
+            <div className="text-neutral-400">
+              스타일 가이드:{" "}
+              <Link
+                href={`/api/runs/${runId}/style-guide`}
+                className="underline hover:text-emerald-400"
+              >
+                style_guide.json 다운로드
+              </Link>
+              <div className="text-neutral-600 break-all">{run.styleGuidePath}</div>
+            </div>
+          )}
           {inProgress && (
             <div className="text-emerald-400">⏳ 진행 중 — 5초마다 자동 새로고침</div>
           )}
