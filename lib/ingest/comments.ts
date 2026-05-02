@@ -1,6 +1,6 @@
 import path from "node:path";
 import fs from "node:fs/promises";
-import { execCommand } from "@/lib/utils/exec";
+import { execCommand } from "@/lib/system/exec";
 
 export interface Comment {
   text: string;
