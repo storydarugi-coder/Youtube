@@ -40,6 +40,9 @@ import {
   type ImagesJson,
 } from "@/lib/images/schema";
 import { AudioJsonSchema, type AudioJson } from "@/lib/audio/schema";
+import { VideoJsonSchema, type VideoJson } from "@/lib/video/schema";
+import { runDir } from "@/lib/runs/paths";
+import path from "node:path";
 import { SelectionForm } from "./_components/selection-form";
 
 type Params = Promise<{ runId: string }>;
@@ -77,6 +80,9 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
   tts_generating: "secondary",
   audio_generated: "default",
   audio_failed: "destructive",
+  rendering: "secondary",
+  video_rendered: "default",
+  render_failed: "destructive",
   done: "default",
   failed: "destructive",
 };
@@ -143,7 +149,8 @@ export default async function RunPage({ params }: { params: Params }) {
     run.status === "storyboarding" ||
     run.status === "finalizing" ||
     run.status === "generating_images" ||
-    run.status === "tts_generating";
+    run.status === "tts_generating" ||
+    run.status === "rendering";
 
   const candidates: Candidates | null = run.candidatesPath
     ? await readJsonSafe(run.candidatesPath, (raw) =>
@@ -189,6 +196,12 @@ export default async function RunPage({ params }: { params: Params }) {
 
   const audioJson: AudioJson | null = run.audioPath
     ? await readJsonSafe(run.audioPath, (raw) => AudioJsonSchema.parse(raw))
+    : null;
+
+  const videoJson: VideoJson | null = run.videoMdPath
+    ? await readJsonSafe(path.join(runDir(runId), "video.json"), (raw) =>
+        VideoJsonSchema.parse(raw)
+      )
     : null;
 
   return (
@@ -379,6 +392,38 @@ export default async function RunPage({ params }: { params: Params }) {
                     실제 ${run.totalAudioCostUsd.toFixed(2)}
                   </span>
                 )}
+            </div>
+          )}
+          {run.videoPath && (
+            <div className="text-neutral-400">
+              영상:{" "}
+              <Link
+                href={`/api/runs/${runId}/video`}
+                className="underline hover:text-emerald-400"
+              >
+                final.mp4
+              </Link>
+              {" · "}
+              <Link
+                href={`/api/runs/${runId}/srt`}
+                className="underline hover:text-emerald-400"
+              >
+                final.srt
+              </Link>
+              {" · "}
+              <Link
+                href={`/api/runs/${runId}/video-md`}
+                className="underline hover:text-emerald-400"
+              >
+                video.md
+              </Link>
+              {" · "}
+              <Link
+                href={`/api/runs/${runId}/video-json`}
+                className="underline hover:text-emerald-400"
+              >
+                video.json
+              </Link>
             </div>
           )}
           {inProgress && (
@@ -1119,6 +1164,54 @@ export default async function RunPage({ params }: { params: Params }) {
                     </ul>
                   </details>
                 )}
+              </CardContent>
+            </Card>
+          </section>
+        </>
+      )}
+
+      {videoJson && run.videoPath && (
+        <>
+          <Separator />
+          <section className="space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h2 className="text-xl font-semibold">최종 영상</h2>
+              <span className="text-xs text-neutral-500">
+                {videoJson.meta.width}x{videoJson.meta.height} ·{" "}
+                {videoJson.meta.fps}fps · {videoJson.meta.videoCodec} (crf{" "}
+                {videoJson.meta.crf}) · ffmpeg {videoJson.meta.ffmpegVersion}
+              </span>
+            </div>
+            <Card>
+              <CardContent className="pt-6 text-sm space-y-3">
+                <video
+                  controls
+                  preload="metadata"
+                  src={`/api/runs/${runId}/video`}
+                  className="w-full rounded border border-neutral-800 bg-black"
+                />
+                <div className="text-xs text-neutral-500">
+                  씬 {videoJson.meta.succeeded}/{videoJson.meta.totalScenes} 성공
+                  {videoJson.meta.placeholders > 0 && (
+                    <span className="text-neutral-400">
+                      {" "}· placeholder {videoJson.meta.placeholders}
+                    </span>
+                  )}
+                  {videoJson.meta.skippedExisting > 0 && (
+                    <span> · 재개 스킵 {videoJson.meta.skippedExisting}</span>
+                  )}
+                  {videoJson.meta.failed > 0 && (
+                    <span className="text-red-400">
+                      {" "}· 실패 {videoJson.meta.failed}
+                    </span>
+                  )}{" "}
+                  · 총 길이 {Math.floor(videoJson.meta.totalDurationMs / 60000)}:
+                  {String(
+                    Math.round(
+                      (videoJson.meta.totalDurationMs % 60000) / 1000
+                    )
+                  ).padStart(2, "0")}
+                </div>
               </CardContent>
             </Card>
           </section>

@@ -10,6 +10,7 @@ import { storyboardScriptFunction } from "@/lib/inngest/functions/storyboard-scr
 import { finalizeMetaFunction } from "@/lib/inngest/functions/finalize-meta";
 import { generateImagesFunction } from "@/lib/inngest/functions/generate-images";
 import { generateAudioFunction } from "@/lib/inngest/functions/generate-audio";
+import { renderVideoFunction } from "@/lib/inngest/functions/render-video";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -24,5 +25,6 @@ export const { GET, POST, PUT } = serve({
     finalizeMetaFunction,
     generateImagesFunction,
     generateAudioFunction,
+    renderVideoFunction,
   ],
 });

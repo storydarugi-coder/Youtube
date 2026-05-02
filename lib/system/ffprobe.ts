@@ -1,8 +1,23 @@
 import { execCommand } from "@/lib/system/exec";
 
+// Use bundled binary from @ffprobe-installer/ffprobe (auto-installed via npm)
+// 호스트에 ffprobe 미설치여도 동작하게 보강 (M10에서 호스트 의존이었던 부분 해결).
+let _ffprobePath: string | null = null;
+function getFfprobePath(): string {
+  if (_ffprobePath !== null) return _ffprobePath;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const installer = require("@ffprobe-installer/ffprobe") as { path: string };
+    _ffprobePath = installer.path;
+  } catch {
+    _ffprobePath = "ffprobe"; // 호스트 PATH 폴백
+  }
+  return _ffprobePath;
+}
+
 export async function getMp3DurationMs(mp3Path: string): Promise<number> {
   const result = await execCommand(
-    "ffprobe",
+    getFfprobePath(),
     [
       "-v",
       "error",
@@ -22,4 +37,8 @@ export async function getMp3DurationMs(mp3Path: string): Promise<number> {
     throw new Error(`ffprobe returned non-numeric: ${result.stdout}`);
   }
   return Math.round(sec * 1000);
+}
+
+export async function getMediaDurationMs(filePath: string): Promise<number> {
+  return getMp3DurationMs(filePath);
 }
